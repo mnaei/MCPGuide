@@ -1,21 +1,16 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import fetch from 'node-fetch';
 import { z } from 'zod';
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+
+import { REPOSITORIES, LATEST_PROTOCOL_VERSION, RepositoryInfo } from './config/repositories.ts';
+import { fetchWithRetry, validateJson, ensureParentDirectoryExists } from './utils/fetch-utils.ts';
 
 /**
  * This implementation provides LLMs with access to MCP specifications,
  * documentation, and implementations to develop MCP-based solutions.
  */
-
-// Constants
-const LATEST_PROTOCOL_VERSION = "2025-03-26";
-const SPECIFICATION_REPO_URL = "https://github.com/modelcontextprotocol/specification";
-// const TYPESCRIPT_SDK_REPO_URL = "https://github.com/modelcontextprotocol/typescript-sdk";
-// const PYTHON_SDK_REPO_URL = "https://github.com/modelcontextprotocol/python-sdk";
-// const DOCUMENTATION_REPO_URL = "https://github.com/modelcontextprotocol/docs.git"
 
 /**
  * Knowledge Base Manager - Manages access to MCP specifications and implementations
@@ -23,11 +18,13 @@ const SPECIFICATION_REPO_URL = "https://github.com/modelcontextprotocol/specific
 class KnowledgeBaseManager {
   private basePath: string;
   private cache: Map<string, any>;
+  private syncResults: Map<string, boolean>;
   
   constructor(basePath: string) {
     // Resolve relative paths to absolute paths
     this.basePath = path.isAbsolute(basePath) ? basePath : path.resolve(process.cwd(), basePath);
     this.cache = new Map();
+    this.syncResults = new Map();
   }
   
   async initialize(): Promise<void> {
@@ -39,6 +36,8 @@ class KnowledgeBaseManager {
     const dirs = [
       path.join(this.basePath, 'specifications'),
       path.join(this.basePath, 'implementations'),
+      path.join(this.basePath, 'implementations/typescript-sdk'),
+      path.join(this.basePath, 'implementations/python-sdk'),
       path.join(this.basePath, 'examples'),
       path.join(this.basePath, 'documentation')
     ];
@@ -52,51 +51,89 @@ class KnowledgeBaseManager {
     }
   }
   
-  async syncLatestSpecifications(): Promise<void> {
+  async syncLatestSpecifications(): Promise<{success: boolean, failedFiles: string[]}> {
     console.log('Syncing latest MCP specifications...');
     
-    const specDir = path.join(this.basePath, 'specifications');
-    const examplesDir = path.join(this.basePath, 'examples');
+    // Clear previous sync results
+    this.syncResults.clear();
+    const failedFiles: string[] = [];
     
-    // Function to fetch content from a URL and save it to a file
-    const fetchAndSaveContent = async (url: string, filePath: string): Promise<boolean> => {
-      try {
-        const response = await fetch(url);
-        if (response.ok) {
-          const data = await response.text();
-          await fs.writeFile(filePath, data);
-          return true;
+    // Download files in parallel with proper validation
+    const downloadPromises = REPOSITORIES.flatMap(repo => 
+      repo.files.map(async (file) => {
+        const url = `${repo.url}${file.remotePath}`;
+        const localPath = path.join(this.basePath, file.localPath);
+        
+        try {
+          await ensureParentDirectoryExists(localPath);
+          
+          // Fetch file with retry logic
+          const result = await fetchWithRetry(url);
+          
+          if (!result.success || !result.data) {
+            console.error(`Failed to download ${url}: ${result.message}`);
+            this.syncResults.set(localPath, false);
+            if (file.required) {
+              failedFiles.push(file.localPath);
+            }
+            return;
+          }
+          
+          // Validate JSON files
+          if (file.localPath.endsWith('.json')) {
+            const validation = await validateJson(result.data);
+            if (!validation.valid) {
+              console.error(`Invalid JSON received from ${url}: ${validation.error}`);
+              this.syncResults.set(localPath, false);
+              if (file.required) {
+                failedFiles.push(file.localPath);
+              }
+              return;
+            }
+          }
+          
+          // Save file
+          await fs.writeFile(localPath, result.data);
+          this.syncResults.set(localPath, true);
+          console.log(`Successfully downloaded ${file.localPath}`);
+          
+        } catch (error) {
+          console.error(`Error processing ${url}:`, error);
+          this.syncResults.set(localPath, false);
+          if (file.required) {
+            failedFiles.push(file.localPath);
+          }
         }
-        return false;
-      } catch (error) {
-        console.error(`Network error while fetching from ${url}:`, error);
-        return false;
-      }
-    };
+      })
+    );
     
+    // Wait for all downloads to complete
+    await Promise.all(downloadPromises);
+    
+    // Always write version information
     try {
-      // Try to fetch the latest specification from GitHub repo
-      await fetchAndSaveContent(
-        `${SPECIFICATION_REPO_URL}/raw/main/schema/schema.json`,
-        path.join(specDir, 'schema.json')
-      );
-      
-      // Fetch example files
-      await fetchAndSaveContent(
-        `${SPECIFICATION_REPO_URL}/raw/main/schema/examples/resource-response.json`,
-        path.join(examplesDir, 'resource-response.json')
-      );
-      
-      // Always write version information
       await fs.writeFile(
-        path.join(specDir, 'version.json'),
-        JSON.stringify({ version: LATEST_PROTOCOL_VERSION, lastUpdated: new Date().toISOString() })
+        path.join(this.basePath, 'specifications', 'version.json'),
+        JSON.stringify({ 
+          version: LATEST_PROTOCOL_VERSION, 
+          lastUpdated: new Date().toISOString(),
+          syncResults: Object.fromEntries(this.syncResults)
+        })
       );
-      
-      console.log(`Specifications synced to version ${LATEST_PROTOCOL_VERSION}`);
     } catch (error) {
-      console.error('Error syncing specifications:', error);
+      console.error('Failed to write version information:', error);
+      failedFiles.push('specifications/version.json');
     }
+    
+    // Check if all required files were successfully downloaded
+    const success = failedFiles.length === 0;
+    
+    console.log(`Specifications sync ${success ? 'completed successfully' : 'completed with errors'}`);
+    if (!success) {
+      console.error(`Failed to download required files: ${failedFiles.join(', ')}`);
+    }
+    
+    return { success, failedFiles };
   }
   
   async getLatestProtocolVersion(): Promise<string> {
@@ -124,6 +161,12 @@ class KnowledgeBaseManager {
     
     try {
       const specContent = await fs.readFile(specPath, 'utf-8');
+      const validation = await validateJson(specContent);
+      
+      if (!validation.valid) {
+        throw new Error(`Invalid JSON in specification file: ${validation.error}`);
+      }
+      
       const specification = JSON.parse(specContent);
       
       // Add version information
@@ -140,7 +183,27 @@ class KnowledgeBaseManager {
       return null;
     }
   }
-
+  
+  // Get documentation for a specific topic
+  async getDocumentation(topic: string): Promise<string | null> {
+    const docPath = path.join(this.basePath, 'documentation', `${topic}.md`);
+    const defaultDocPath = path.join(this.basePath, 'documentation', 'usage-guide.md');
+    
+    try {
+      // Try to find topic-specific documentation
+      const exists = await fs.access(docPath).then(() => true).catch(() => false);
+      
+      if (exists) {
+        return await fs.readFile(docPath, 'utf-8');
+      }
+      
+      // Fall back to default documentation
+      return await fs.readFile(defaultDocPath, 'utf-8');
+    } catch (error) {
+      console.error(`Error retrieving documentation for ${topic}:`, error);
+      return null;
+    }
+  }
 }
 
 /**
@@ -148,9 +211,15 @@ class KnowledgeBaseManager {
  */
 class McpHost {
   private servers: Map<string, McpServer>;
+  private knowledgeBase: KnowledgeBaseManager;
   
-  constructor() {
+  constructor(knowledgeBasePath: string) {
     this.servers = new Map();
+    this.knowledgeBase = new KnowledgeBaseManager(knowledgeBasePath);
+  }
+  
+  async initialize(): Promise<void> {
+    await this.knowledgeBase.initialize();
   }
   
   async createServer(name: string): Promise<McpServer> {
@@ -165,13 +234,41 @@ class McpHost {
       "mcp-docs",
       new ResourceTemplate("mcp-docs://{topic}", { list: undefined }),
       async (uri, { topic }) => {
-        // Use LLM to provide documentation
-        const documentation = '';
+        // Retrieve documentation from the knowledge base
+        const topicStr = typeof topic === 'string' ? topic : (Array.isArray(topic) ? topic[0] : '');
+        const documentation = await this.knowledgeBase.getDocumentation(topicStr) || 
+          `Documentation for '${topicStr}' not found. Please try another topic.`;
         
         return {
           contents: [{
             uri: uri.href,
             text: documentation
+          }]
+        };
+      }
+    );
+    
+    // Add MCP specification resource
+    server.resource(
+      "mcp-spec",
+      new ResourceTemplate("mcp-spec://{version?}", { list: undefined }),
+      async (uri, { version }) => {
+        const versionStr = typeof version === 'string' ? version : (Array.isArray(version) ? version[0] : undefined);
+        const specification = await this.knowledgeBase.getSpecification(versionStr);
+        
+        if (!specification) {
+          return {
+            contents: [{
+              uri: uri.href,
+              text: `Specification for version ${version || 'latest'} not found.`
+            }]
+          };
+        }
+        
+        return {
+          contents: [{
+            uri: uri.href,
+            text: JSON.stringify(specification, null, 2)
           }]
         };
       }
@@ -199,7 +296,19 @@ class McpHost {
   }
 }
 
-// Export classes for testing
+// Default export for easy importing
+export default async function createMcpMetaServer(
+  name: string, 
+  knowledgeBasePath: string
+): Promise<McpServer> {
+  const host = new McpHost(knowledgeBasePath);
+  await host.initialize();
+  
+  const server = await host.createServer(name);
+  return server;
+}
+
+// Export classes for testing and advanced usage
 export {
   KnowledgeBaseManager,
   McpHost,
