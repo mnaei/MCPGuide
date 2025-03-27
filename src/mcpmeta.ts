@@ -137,20 +137,11 @@ class KnowledgeBaseManager {
   }
   
   async getLatestProtocolVersion(): Promise<string> {
-    try {
-      const versionFile = await fs.readFile(
-        path.join(this.basePath, 'specifications', 'version.json'),
-        'utf-8'
-      );
-      return JSON.parse(versionFile).version;
-    } catch (error) {
-      console.error('Error reading protocol version:', error);
-      return LATEST_PROTOCOL_VERSION;
-    }
+    return LATEST_PROTOCOL_VERSION;
   }
   
-  async getSpecification(version?: string): Promise<any | null> {
-    const specVersion = version || await this.getLatestProtocolVersion();
+  async getSpecification(): Promise<any | null> {
+    const specVersion = await this.getLatestProtocolVersion();
     const cacheKey = `spec-${specVersion}`;
     
     if (this.cache.has(cacheKey)) {
@@ -184,26 +175,6 @@ class KnowledgeBaseManager {
     }
   }
   
-  // Get documentation for a specific topic
-  async getDocumentation(topic: string): Promise<string | null> {
-    const docPath = path.join(this.basePath, 'documentation', `${topic}.md`);
-    const defaultDocPath = path.join(this.basePath, 'documentation', 'usage-guide.md');
-    
-    try {
-      // Try to find topic-specific documentation
-      const exists = await fs.access(docPath).then(() => true).catch(() => false);
-      
-      if (exists) {
-        return await fs.readFile(docPath, 'utf-8');
-      }
-      
-      // Fall back to default documentation
-      return await fs.readFile(defaultDocPath, 'utf-8');
-    } catch (error) {
-      console.error(`Error retrieving documentation for ${topic}:`, error);
-      return null;
-    }
-  }
 }
 
 /**
@@ -229,38 +200,18 @@ class McpHost {
       version: "1.0.0"
     });
     
-    // Add MCP documentation resource
-    server.resource(
-      "mcp-docs",
-      new ResourceTemplate("mcp-docs://{topic}", { list: undefined }),
-      async (uri, { topic }) => {
-        // Retrieve documentation from the knowledge base
-        const topicStr = typeof topic === 'string' ? topic : (Array.isArray(topic) ? topic[0] : '');
-        const documentation = await this.knowledgeBase.getDocumentation(topicStr) || 
-          `Documentation for '${topicStr}' not found. Please try another topic.`;
-        
-        return {
-          contents: [{
-            uri: uri.href,
-            text: documentation
-          }]
-        };
-      }
-    );
-    
     // Add MCP specification resource
     server.resource(
       "mcp-spec",
-      new ResourceTemplate("mcp-spec://{version?}", { list: undefined }),
-      async (uri, { version }) => {
-        const versionStr = typeof version === 'string' ? version : (Array.isArray(version) ? version[0] : undefined);
-        const specification = await this.knowledgeBase.getSpecification(versionStr);
+      new ResourceTemplate("mcp-spec://latest", { list: undefined }),
+      async (uri) => {
+        const specification = await this.knowledgeBase.getSpecification();
         
         if (!specification) {
           return {
             contents: [{
               uri: uri.href,
-              text: `Specification for version ${version || 'latest'} not found.`
+              text: `Latest specification not found.`
             }]
           };
         }
