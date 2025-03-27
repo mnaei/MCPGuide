@@ -16,14 +16,9 @@ export const REPOSITORIES: RepositoryInfo[] = [
     url: "https://github.com/modelcontextprotocol/specification",
     files: [
       {
-        remotePath: "/raw/main/schema/schema.json",
+        remotePath: `/raw/main/schema/${LATEST_PROTOCOL_VERSION}/schema.json`,
         localPath: "specifications/schema.json",
         required: true
-      },
-      {
-        remotePath: "/raw/main/schema/examples/resource-response.json",
-        localPath: "examples/resource-response.json",
-        required: false
       }
     ]
   },
@@ -54,8 +49,8 @@ export const REPOSITORIES: RepositoryInfo[] = [
     url: "https://github.com/modelcontextprotocol/docs",
     files: [
       {
-        remotePath: "/raw/main/usage-guide.md",
-        localPath: "documentation/usage-guide.md",
+        remotePath: "/raw/main/README.md",
+        localPath: "documentation/README.md",
         required: true
       }
     ]
