@@ -4,7 +4,7 @@
 import { describe, expect, test } from '@jest/globals';
 // import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 // import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { KnowledgeBaseManager } from '../src/mcpmeta';
+import { KnowledgeBaseManager } from '../src/knowledgebase';
 
 // Skip mocking for core tests
 describe('KnowledgeBaseManager', () => {

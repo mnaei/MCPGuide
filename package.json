@@ -11,6 +11,7 @@
     "sync": "node dist/app.js sync",
     "pretest": "npm run build",
     "test": "NODE_OPTIONS='--experimental-vm-modules' jest",
+    "test:client": "NODE_OPTIONS='--experimental-vm-modules' jest --testPathPattern=test/test-client.test.ts",
     "prelistener": "npm run build",
     "listener": "node dist/listener.js",
     "test-client": "node dist/test-client.js"
