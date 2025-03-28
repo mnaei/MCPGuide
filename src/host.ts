@@ -2,6 +2,8 @@ import "mcps-logger/console";
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { KnowledgeBaseManager } from "./knowledgebase.ts";
+import { z } from "zod";
+
 /**
  * MCP Host - Manages MCP servers
  */
@@ -19,23 +21,27 @@ let server = new McpServer({
 // Add MCP specification resource
 server.resource(
   "mcp-spec",
-  new ResourceTemplate("mcp-spec://latest", { list: undefined }),
-  async (uri) => {
-    const specification = await knowledgeBase.getSpecification();
-    
-    if (!specification) {
+  new ResourceTemplate("mcp-spec://latest", { 
+    list: async (extra) => {
+      // This callback returns a list of resources that match this template
       return {
-        contents: [{
-          uri: uri.href,
-          text: `Latest specification not found.`
+        resources: [{
+          uri: "mcp-spec://latest",
+          name: "MCP Specification",
+          description: "The latest MCP specification document"
         }]
       };
     }
+  }),
+  async (uri) => {
+    const specification = await knowledgeBase.getSpecification();
     
     return {
       contents: [{
         uri: uri.href,
+        mimeType: "text/plain",
         text: JSON.stringify(specification, null, 2)
+        // text: "MCP Guide Resource"
       }]
     };
   }
@@ -45,7 +51,6 @@ try {
   // Create and connect a transport for the server
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.log(`Server started with stdio transport`);
 } catch (error) {
   console.error(`Error starting server:`, error);
   throw error;
