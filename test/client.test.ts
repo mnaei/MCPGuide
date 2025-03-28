@@ -20,7 +20,6 @@ describe('MCP Test Client', () => {
   
   test('main function creates MCP server with correct parameters', async () => {
     // Import the test-client module
-    const testClientModule = await import('../src/test-client');
     
     // Check that the console.log was called with the startup message
     expect(console.log).toHaveBeenCalledWith("Starting MCP test client...");
