@@ -5,13 +5,18 @@
   "type": "module",
   "scripts": {
     "build": "tsc --outDir dist",
-    "start": "node dist/mcpmeta.js start",
-    "sync": "node dist/mcpmeta.js sync",
+    "prestart": "npm run build",
+    "start": "node dist/app.js start",
+    "presync": "npm run build",
+    "sync": "node dist/app.js sync",
     "pretest": "npm run build",
-    "test": "NODE_OPTIONS='--experimental-vm-modules' jest"
+    "test": "NODE_OPTIONS='--experimental-vm-modules' jest",
+    "prelistener": "npm run build",
+    "listener": "node dist/listener.js",
+    "test-client": "node dist/test-client.js"
   },
   "bin": {
-    "mcpmeta": "./dist/mcpmeta.js"
+    "mcpmeta": "./dist/app.js"
   },
   "keywords": [
     "mcp",
@@ -31,6 +36,8 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.8.0",
     "commander": "^11.1.0",
+    "eventsource": "^3.0.6",
+    "mcps-logger": "^1.0.0-rc.4",
     "node-fetch": "^3.3.2",
     "zod": "^3.24.2"
   }

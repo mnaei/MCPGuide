@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
+import "mcps-logger/console";
 import { program } from 'commander';
-import { McpHost } from './mcphost.ts';
+import { McpHost } from './host.ts';
 
 program
   .name('mcpmeta')
