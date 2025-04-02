@@ -2,7 +2,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 
 import { REPOSITORIES, LATEST_PROTOCOL_VERSION, RepositoryInfo } from './config/repositories.ts';
-import { fetchWithRetry, validateJson, ensureParentDirectoryExists } from './utils/fetch-utils.ts';
+import { fetchWithRetry, validateJson, ensureParentDirectoryExists } from './utils/fetch.ts';
 
 /**
  * This implementation provides LLMs with access to MCP specifications,
