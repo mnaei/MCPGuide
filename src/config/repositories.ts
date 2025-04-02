@@ -9,6 +9,7 @@ export interface RepositoryInfo {
 }
 
 export const LATEST_PROTOCOL_VERSION = "2025-03-26";
+export const AVAILABLE_VERSIONS = ["2025-03-26", "2024-11-05"];
 
 export const REPOSITORIES: RepositoryInfo[] = [
   {
@@ -17,7 +18,7 @@ export const REPOSITORIES: RepositoryInfo[] = [
     files: [
       {
         remotePath: `/raw/main/schema/${LATEST_PROTOCOL_VERSION}/schema.json`,
-        localPath: "specifications/schema.json",
+        localPath: `specifications/${LATEST_PROTOCOL_VERSION}/schema.json`,
         required: true
       }
     ]

@@ -1,7 +1,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
-import { REPOSITORIES, LATEST_PROTOCOL_VERSION, RepositoryInfo } from './config/repositories.ts';
+import { REPOSITORIES, LATEST_PROTOCOL_VERSION, AVAILABLE_VERSIONS, RepositoryInfo } from './config/repositories.ts';
 import { fetchWithRetry, validateJson, ensureParentDirectoryExists } from './utils/fetch.ts';
 
 /**
@@ -32,6 +32,7 @@ class KnowledgeBaseManager {
   private async ensureDirectories(): Promise<void> {
     const dirs = [
       path.join(this.basePath, 'specifications'),
+      ...AVAILABLE_VERSIONS.map(version => path.join(this.basePath, 'specifications', version)),
       path.join(this.basePath, 'implementations'),
       path.join(this.basePath, 'implementations/typescript-sdk'),
       path.join(this.basePath, 'implementations/python-sdk'),
@@ -49,60 +50,70 @@ class KnowledgeBaseManager {
   }
   
   async syncLatestSpecifications(): Promise<{success: boolean, failedFiles: string[]}> {
-    console.log('Syncing latest MCP specifications...');
+    console.log('Syncing MCP specifications for all versions...');
     
     // Clear previous sync results
     this.syncResults.clear();
     const failedFiles: string[] = [];
     
+    // Create a list of all files to download for all versions
+    const allFiles = AVAILABLE_VERSIONS.flatMap(version => 
+      REPOSITORIES.flatMap(repo => 
+        repo.files.map(file => ({
+          ...file,
+          remotePath: file.remotePath.replace(LATEST_PROTOCOL_VERSION, version),
+          localPath: file.localPath.replace(LATEST_PROTOCOL_VERSION, version),
+          url: repo.url
+        }))
+      )
+    );
+    
     // Download files in parallel with proper validation
-    const downloadPromises = REPOSITORIES.flatMap(repo => 
-      repo.files.map(async (file) => {
-        const url = `${repo.url}${file.remotePath}`;
-        const localPath = path.join(this.basePath, file.localPath);
+    const downloadPromises = allFiles.map(async (file) => {
+      const url = `${file.url}${file.remotePath}`;
+      const localPath = path.join(this.basePath, file.localPath);
+      
+      try {
+        await ensureParentDirectoryExists(localPath);
         
-        try {
-          await ensureParentDirectoryExists(localPath);
-          
-          // Fetch file with retry logic
-          const result = await fetchWithRetry(url);
-          
-          if (!result.success || !result.data) {
-            console.error(`Failed to download ${url}: ${result.message}`);
+        // Fetch file with retry logic
+        const result = await fetchWithRetry(url);
+        
+        if (!result.success || !result.data) {
+          console.error(`Failed to download ${url}: ${result.message}`);
+          this.syncResults.set(localPath, false);
+          if (file.required) {
+            failedFiles.push(file.localPath);
+          }
+          return;
+        }
+        
+        // Validate JSON files
+        if (file.localPath.endsWith('.json')) {
+          const validation = await validateJson(result.data);
+          if (!validation.valid) {
+            console.error(`Invalid JSON received from ${url}: ${validation.error}`);
             this.syncResults.set(localPath, false);
             if (file.required) {
               failedFiles.push(file.localPath);
             }
             return;
           }
-          
-          // Validate JSON files
-          if (file.localPath.endsWith('.json')) {
-            const validation = await validateJson(result.data);
-            if (!validation.valid) {
-              console.error(`Invalid JSON received from ${url}: ${validation.error}`);
-              this.syncResults.set(localPath, false);
-              if (file.required) {
-                failedFiles.push(file.localPath);
-              }
-              return;
-            }
-          }
-          
-          // Save file
-          await fs.writeFile(localPath, result.data);
-          this.syncResults.set(localPath, true);
-          console.log(`Successfully downloaded ${file.localPath}`);
-          
-        } catch (error) {
-          console.error(`Error processing ${url}:`, error);
-          this.syncResults.set(localPath, false);
-          if (file.required) {
-            failedFiles.push(file.localPath);
-          }
         }
-      })
-    );
+        
+        // Save file
+        await fs.writeFile(localPath, result.data);
+        this.syncResults.set(localPath, true);
+        console.log(`Successfully downloaded ${file.localPath}`);
+        
+      } catch (error) {
+        console.error(`Error processing ${url}:`, error);
+        this.syncResults.set(localPath, false);
+        if (file.required) {
+          failedFiles.push(file.localPath);
+        }
+      }
+    });
     
     // Wait for all downloads to complete
     await Promise.all(downloadPromises);
@@ -112,7 +123,8 @@ class KnowledgeBaseManager {
       await fs.writeFile(
         path.join(this.basePath, 'specifications', 'version.json'),
         JSON.stringify({ 
-          version: LATEST_PROTOCOL_VERSION, 
+          versions: AVAILABLE_VERSIONS,
+          latestVersion: LATEST_PROTOCOL_VERSION, 
           lastUpdated: new Date().toISOString(),
           syncResults: Object.fromEntries(this.syncResults)
         })
@@ -137,15 +149,15 @@ class KnowledgeBaseManager {
     return LATEST_PROTOCOL_VERSION;
   }
   
-  async getSpecification(): Promise<any | null> {
-    const specVersion = await this.getLatestProtocolVersion();
+  async getSpecification(version?: string): Promise<any | null> {
+    const specVersion = version || await this.getLatestProtocolVersion();
     const cacheKey = `spec-${specVersion}`;
     
     if (this.cache.has(cacheKey)) {
       return this.cache.get(cacheKey);
     }
     
-    const specPath = path.join(this.basePath, 'specifications', 'schema.json');
+    const specPath = path.join(this.basePath, 'specifications', `${specVersion}`, 'schema.json');
     
     try {
       const specContent = await fs.readFile(specPath, 'utf-8');
@@ -164,7 +176,7 @@ class KnowledgeBaseManager {
       return specification;
     } catch (error) {
       if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
-        console.error('Schema file not found');
+        console.error(`Schema file not found for version ${specVersion}`);
       } else {
         console.error('Error reading specification:', error);
       }

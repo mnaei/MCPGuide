@@ -3,13 +3,14 @@ import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mc
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { KnowledgeBaseManager } from "./knowledgebase.ts";
 import { z } from "zod";
+import { AVAILABLE_VERSIONS, LATEST_PROTOCOL_VERSION } from "./config/repositories.ts";
 
 /**
  * MCP Host - Manages MCP servers
  */
 
 // Define version enum with Zod
-const VersionEnum = z.enum(['2025-03-26', '2024-11-05']);
+const VersionEnum = z.enum(AVAILABLE_VERSIONS as [string, ...string[]]);
 type VersionType = z.infer<typeof VersionEnum>;
 
 // Export the enum values for easy access
@@ -38,7 +39,7 @@ server.resource(
           description: `The MCP specification document for version ${v}`,
           metadata: {
             availableVersions: VERSION_OPTIONS,
-            defaultVersion: "2025-03-26"
+            defaultVersion: LATEST_PROTOCOL_VERSION
           }
         }))
       };
@@ -47,8 +48,8 @@ server.resource(
   async (uri, { version }) => {
     // Validate version
     try {
-      const validatedVersion = VersionEnum.parse(version || "2025-03-26");
-      const specification = await knowledgeBase.getSpecification();
+      const validatedVersion = VersionEnum.parse(version || LATEST_PROTOCOL_VERSION);
+      const specification = await knowledgeBase.getSpecification(validatedVersion);
       
       return {
         contents: [{
