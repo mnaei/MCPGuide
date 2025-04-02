@@ -7,6 +7,7 @@ import net from "node:net";
 const isDevelopment = process.env.NODE_ENV !== 'production';
 let socket: net.Socket | null = null;
 let isConnected = false;
+let logQueue: Array<{level: string, args: any[]}> = [];
 
 // Connect to the log server
 if (isDevelopment) {
@@ -14,17 +15,19 @@ if (isDevelopment) {
 
   socket.on('connect', () => {
     isConnected = true;
-    console.info('Connected to log server');
+    // Process any queued logs
+    while (logQueue.length > 0) {
+      const {level, args} = logQueue.shift()!;
+      sendToServer(level, ...args);
+    }
   });
 
   socket.on('error', (err) => {
     isConnected = false;
-    console.error('Failed to connect to log server:', err);
   });
 
   socket.on('close', () => {
     isConnected = false;
-    console.info('Disconnected from log server');
   });
 }
 
@@ -32,6 +35,12 @@ if (isDevelopment) {
  * Send log entry to the server
  */
 const sendToServer = (level: string, ...args: any[]) => {
+  if (!isConnected) {
+    // Queue the log if not connected
+    logQueue.push({level, args});
+    return;
+  }
+
   if (socket && isConnected) {
     const message = args.map(arg => 
       typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
@@ -53,7 +62,6 @@ const sendToServer = (level: string, ...args: any[]) => {
 const originalConsoleLog = console.log;
 console.log = (...args: any[]) => {
   if (isDevelopment) {
-    originalConsoleLog(...args);
     sendToServer('info', ...args);
   }
 };
@@ -64,7 +72,6 @@ console.log = (...args: any[]) => {
 const originalConsoleError = console.error;
 console.error = (...args: any[]) => {
   if (isDevelopment) {
-    originalConsoleError(...args);
     sendToServer('error', ...args);
   }
 };
@@ -75,7 +82,6 @@ console.error = (...args: any[]) => {
 const originalConsoleWarn = console.warn;
 console.warn = (...args: any[]) => {
   if (isDevelopment) {
-    originalConsoleWarn(...args);
     sendToServer('warn', ...args);
   }
 };
@@ -86,7 +92,6 @@ console.warn = (...args: any[]) => {
 const originalConsoleInfo = console.info;
 console.info = (...args: any[]) => {
   if (isDevelopment) {
-    originalConsoleInfo(...args);
     sendToServer('info', ...args);
   }
 };
@@ -97,7 +102,6 @@ console.info = (...args: any[]) => {
 const originalConsoleDebug = console.debug;
 console.debug = (...args: any[]) => {
   if (isDevelopment) {
-    originalConsoleDebug(...args);
     sendToServer('debug', ...args);
   }
 };
