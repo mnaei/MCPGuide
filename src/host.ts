@@ -11,7 +11,6 @@ import { AVAILABLE_VERSIONS, LATEST_PROTOCOL_VERSION } from "./config/repositori
 
 // Define version enum with Zod
 const VersionEnum = z.enum(AVAILABLE_VERSIONS as [string, ...string[]]);
-type VersionType = z.infer<typeof VersionEnum>;
 
 // Export the enum values for easy access
 export const VERSION_OPTIONS = VersionEnum.enum;
@@ -31,7 +30,6 @@ server.resource(
   "mcp-spec",
   new ResourceTemplate("mcp-spec://{version}", { 
     list: async (extra) => {
-
       return {
         resources: Object.keys(VERSION_OPTIONS).map(v => ({
           uri: `mcp-spec://${v}`,
@@ -45,7 +43,7 @@ server.resource(
       };
     }
   }),
-  async (uri, { version }) => {
+  async (uri: URL, { version }: { version?: string }) => {
     // Validate version
     try {
       const validatedVersion = VersionEnum.parse(version || LATEST_PROTOCOL_VERSION);

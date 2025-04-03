@@ -1,5 +1,5 @@
 // Import logger to ensure console overrides are in place
-import './utils/logger.ts';
+import './logger.ts';
 
 // Test file to verify logging functionality
 console.log('This is a test log message');
