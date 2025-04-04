@@ -26,47 +26,39 @@ let server = new McpServer({
 });
 
 // Add MCP specification resource
-server.resource(
+server.tool(
   "mcp-spec",
-  new ResourceTemplate("mcp-spec://{version}", { 
-    list: async (extra) => {
-      return {
-        resources: Object.keys(VERSION_OPTIONS).map(v => ({
-          uri: `mcp-spec://${v}`,
-          name: `MCP Specification (${v})`,
-          description: `The MCP specification document for version ${v}`,
-          metadata: {
-            availableVersions: VERSION_OPTIONS,
-            defaultVersion: LATEST_PROTOCOL_VERSION
-          }
-        }))
-      };
-    }
-  }),
-  async (uri: URL, { version }: { version?: string }) => {
+  "Get MCP Specification for a specific version",
+  {
+    version: z.enum(AVAILABLE_VERSIONS as [string, ...string[]]).optional()
+  },
+  async (args, extra) => {
     // Validate version
     try {
-      const validatedVersion = VersionEnum.parse(version || LATEST_PROTOCOL_VERSION);
+      const validatedVersion = VersionEnum.parse(args.version || LATEST_PROTOCOL_VERSION);
       const specification = await knowledgeBase.getSpecification(validatedVersion);
       
       return {
-        contents: [{
-          uri: uri.href,
-          mimeType: "text/plain",
-          text: JSON.stringify({
-            ...specification,
-            version: validatedVersion
-          }, null, 2)
-        }]
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              ...specification,
+              version: validatedVersion
+            }, null, 2)
+          }
+        ]
       };
     } catch (error) {
       if (error instanceof z.ZodError) {
         return {
-          contents: [{
-            uri: uri.href,
-            mimeType: "text/plain",
-            text: `Invalid version. Available versions are: ${Object.keys(VERSION_OPTIONS).join(', ')}`
-          }]
+          content: [
+            {
+              type: "text",
+              text: `Invalid version. Available versions are: ${Object.keys(VERSION_OPTIONS).join(', ')}`
+            }
+          ],
+          isError: true
         };
       }
       throw error;
