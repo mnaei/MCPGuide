@@ -1,8 +1,10 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
-import { REPOSITORIES, LATEST_PROTOCOL_VERSION, AVAILABLE_VERSIONS, RepositoryInfo } from './config/repositories.ts';
-import { fetchWithRetry, validateJson, ensureParentDirectoryExists } from './utils/fetch.ts';
+import { REPOSITORIES, AVAILABLE_VERSIONS, LATEST_PROTOCOL_VERSION } from '../config/constants';
+import { REPOSITORIES as REPO_CONFIG } from '../config/repositories';
+import { fetchWithRetry, validateJson } from '../services/network';
+import { ensureParentDirectoryExists } from '../utils/fs-helpers';
 
 /**
  * This implementation provides LLMs with access to MCP specifications,
@@ -12,7 +14,7 @@ import { fetchWithRetry, validateJson, ensureParentDirectoryExists } from './uti
 /**
  * Knowledge Base Manager - Manages access to MCP specifications and implementations
  */
-class KnowledgeBaseManager {
+export class KnowledgeBaseManager {
   private basePath: string;
   private cache: Map<string, any>;
   private syncResults: Map<string, boolean>;
@@ -58,7 +60,7 @@ class KnowledgeBaseManager {
     
     // Create a list of all files to download for all versions
     const allFiles = AVAILABLE_VERSIONS.flatMap(version => 
-      REPOSITORIES.flatMap(repo => 
+      REPO_CONFIG.flatMap(repo => 
         repo.files.map(file => ({
           ...file,
           remotePath: file.remotePath.replace(LATEST_PROTOCOL_VERSION, version),
@@ -183,12 +185,4 @@ class KnowledgeBaseManager {
       return null;
     }
   }
-  
-}
-
-
-
-// Export classes for testing and advanced usage
-export {
-  KnowledgeBaseManager,
-};
+} 

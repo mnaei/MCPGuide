@@ -1,15 +1,5 @@
-export interface RepositoryInfo {
-  name: string;
-  url: string;
-  files: {
-    remotePath: string;
-    localPath: string;
-    required: boolean;
-  }[];
-}
-
-export const LATEST_PROTOCOL_VERSION = "2025-03-26";
-export const AVAILABLE_VERSIONS = ["2025-03-26", "2024-11-05"];
+import { RepositoryInfo } from '../types/repositories';
+import { LATEST_PROTOCOL_VERSION } from './constants';
 
 export const REPOSITORIES: RepositoryInfo[] = [
   {

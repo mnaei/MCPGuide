@@ -1,0 +1,2 @@
+export const LATEST_PROTOCOL_VERSION = "2025-03-26";
+export const AVAILABLE_VERSIONS = ["2025-03-26", "2024-11-05"]; 

@@ -1,6 +1,5 @@
-import * as fs from 'fs/promises';
-import * as path from 'path';
 import fetch from 'node-fetch';
+import { ensureParentDirectoryExists } from '../../utils/fs-helpers';
 
 export interface FetchResult {
   success: boolean;
@@ -61,9 +60,4 @@ export async function validateJson(content: string): Promise<{ valid: boolean; e
       error: error instanceof Error ? error.message : 'Invalid JSON format'
     };
   }
-}
-
-export async function ensureParentDirectoryExists(filePath: string): Promise<void> {
-  const dirname = path.dirname(filePath);
-  await fs.mkdir(dirname, { recursive: true });
-}
+} 

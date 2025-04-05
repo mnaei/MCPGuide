@@ -2,7 +2,12 @@ import net from "node:net";
 
 type LogLevel = 'error' | 'warn' | 'info' | 'debug';
 
-function createLogServer(port = 8099) {
+/**
+ * Creates and manages a log server that listens on the specified port.
+ * @param port The port to listen on (default: 8099)
+ * @returns An object with a stop method to close the server
+ */
+export function createLogServer(port = 8099) {
   const server = net.createServer((socket) => {
     console.log('Client connected');
     
@@ -46,9 +51,4 @@ function createLogServer(port = 8099) {
       console.log(`Log server on port ${port} stopped`);
     }
   };
-}
-
-// Usage:
-createLogServer();
-// Later when you want to stop:
-// logServer.stop();
+} 

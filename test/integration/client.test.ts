@@ -1,10 +1,9 @@
 import { describe, expect, it, beforeEach, afterEach } from '@jest/globals';
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { LATEST_PROTOCOL_VERSION } from "../src/config/repositories.ts";
-import { z } from "zod";
+import { LATEST_PROTOCOL_VERSION } from "../../src/config/constants";
 
-describe("MCP Client Basic Tests", () => {
+describe("MCP Client Integration Tests", () => {
   let client: Client;
   let transport: StdioClientTransport;
 
@@ -18,7 +17,7 @@ describe("MCP Client Basic Tests", () => {
     // Initialize transport with required command
     transport = new StdioClientTransport({
       command: "node",
-      args: ["dist/host.js"]
+      args: ["dist/index.js"]
     });
   });
 
