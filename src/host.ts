@@ -1,5 +1,5 @@
 import "./utils/logger.ts";
-import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { KnowledgeBaseManager } from "./knowledgebase.ts";
 import { z } from "zod";
@@ -15,6 +15,17 @@ const VersionEnum = z.enum(AVAILABLE_VERSIONS as [string, ...string[]]);
 // Export the enum values for easy access
 export const VERSION_OPTIONS = VersionEnum.enum;
 
+// Define the schema shape
+const mcpSpecificationSchema = {
+  version: z.enum(AVAILABLE_VERSIONS as [string, ...string[]]).optional()
+};
+
+// Create the Zod schema object
+const McpSpecificationArgsSchema = z.object(mcpSpecificationSchema);
+
+// Derive TypeScript type from the schema
+type McpSpecificationArgs = z.infer<typeof McpSpecificationArgsSchema>;
+
 let knowledgeBase = new KnowledgeBaseManager("./data");
 
 await knowledgeBase.initialize();
@@ -25,44 +36,38 @@ let server = new McpServer({
   version: "0.1"
 });
 
-// Add MCP specification resource
 server.tool(
-  "mcp-spec",
+  "mcp-specification",
   "Get MCP Specification for a specific version",
-  {
-    version: z.enum(AVAILABLE_VERSIONS as [string, ...string[]]).optional()
-  },
-  async (args, extra) => {
+  mcpSpecificationSchema,
+  async (args: McpSpecificationArgs, extra) => {
     // Validate version
-    try {
-      const validatedVersion = VersionEnum.parse(args.version || LATEST_PROTOCOL_VERSION);
-      const specification = await knowledgeBase.getSpecification(validatedVersion);
-      
+    const parseResult = VersionEnum.safeParse(args.version || LATEST_PROTOCOL_VERSION);
+    if (!parseResult.success) {
       return {
         content: [
           {
             type: "text",
-            text: JSON.stringify({
-              ...specification,
-              version: validatedVersion
-            }, null, 2)
+            text: `Invalid version. Available versions are: ${Object.keys(VERSION_OPTIONS).join(', ')}`
           }
-        ]
+        ],
+        isError: true
       };
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Invalid version. Available versions are: ${Object.keys(VERSION_OPTIONS).join(', ')}`
-            }
-          ],
-          isError: true
-        };
-      }
-      throw error;
     }
+    const validatedVersion = parseResult.data;
+    const specification = await knowledgeBase.getSpecification(validatedVersion);
+    
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            ...specification,
+            version: validatedVersion
+          }, null, 2)
+        }
+      ]
+    };
   }
 );
 
