@@ -1,47 +1,32 @@
 /**
- * Custom logger utility that only shows logs in development mode and sends them to the log server
+ * Custom logger utility that only shows logs in development mode and writes them to a log file
  */
 
-import net from "node:net";
+import fs from "node:fs";
+import path from "node:path";
 
 const isDevelopment = process.env.NODE_ENV !== 'production';
-let socket: net.Socket | null = null;
-let isConnected = false;
-let logQueue: Array<{level: string, args: any[]}> = [];
+const LOG_DIR = path.join(process.cwd(), 'logs');
+const LOG_FILE = path.join(LOG_DIR, `app-${new Date().toISOString().split('T')[0]}.log`);
 
-// Connect to the log server
+// Create logs directory if it doesn't exist
 if (isDevelopment) {
-  socket = net.connect({ port: 8099 });
-
-  socket.on('connect', () => {
-    isConnected = true;
-    // Process any queued logs
-    while (logQueue.length > 0) {
-      const {level, args} = logQueue.shift()!;
-      sendToServer(level, ...args);
+  try {
+    if (!fs.existsSync(LOG_DIR)) {
+      fs.mkdirSync(LOG_DIR, { recursive: true });
     }
-  });
-
-  socket.on('error', (err) => {
-    isConnected = false;
-  });
-
-  socket.on('close', () => {
-    isConnected = false;
-  });
+  } catch (err) {
+    console.error('Failed to create log directory:', err);
+  }
 }
 
 /**
- * Send log entry to the server
+ * Write log entry to file
  */
-const sendToServer = (level: string, ...args: any[]) => {
-  if (!isConnected) {
-    // Queue the log if not connected
-    logQueue.push({level, args});
-    return;
-  }
+const writeToFile = (level: string, ...args: any[]) => {
+  if (!isDevelopment) return;
 
-  if (socket && isConnected) {
+  try {
     const message = args.map(arg => 
       typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
     ).join(' ');
@@ -52,7 +37,11 @@ const sendToServer = (level: string, ...args: any[]) => {
       timestamp: new Date().toISOString()
     };
     
-    socket.write(JSON.stringify(logEntry) + '\n');
+    const logLine = JSON.stringify(logEntry) + '\n';
+    fs.appendFileSync(LOG_FILE, logLine);
+  } catch (err) {
+    // Use original console methods to avoid infinite loops
+    originalConsole.error('Failed to write to log file:', err);
   }
 };
 
@@ -62,7 +51,7 @@ const sendToServer = (level: string, ...args: any[]) => {
 const originalConsoleLog = console.log;
 console.log = (...args: any[]) => {
   if (isDevelopment) {
-    sendToServer('info', ...args);
+    writeToFile('info', ...args);
   }
 };
 
@@ -72,7 +61,7 @@ console.log = (...args: any[]) => {
 const originalConsoleError = console.error;
 console.error = (...args: any[]) => {
   if (isDevelopment) {
-    sendToServer('error', ...args);
+    writeToFile('error', ...args);
   }
 };
 
@@ -82,7 +71,7 @@ console.error = (...args: any[]) => {
 const originalConsoleWarn = console.warn;
 console.warn = (...args: any[]) => {
   if (isDevelopment) {
-    sendToServer('warn', ...args);
+    writeToFile('warn', ...args);
   }
 };
 
@@ -92,7 +81,7 @@ console.warn = (...args: any[]) => {
 const originalConsoleInfo = console.info;
 console.info = (...args: any[]) => {
   if (isDevelopment) {
-    sendToServer('info', ...args);
+    writeToFile('info', ...args);
   }
 };
 
@@ -102,7 +91,7 @@ console.info = (...args: any[]) => {
 const originalConsoleDebug = console.debug;
 console.debug = (...args: any[]) => {
   if (isDevelopment) {
-    sendToServer('debug', ...args);
+    writeToFile('debug', ...args);
   }
 };
 

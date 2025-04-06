@@ -4,9 +4,11 @@
   "description": "MCP implementation for LLMs",
   "type": "module",
   "scripts": {
-    "build": "tsc --outDir dist",
+    "clean": "rimraf dist",
+    "build": "npm run clean && tsc --outDir dist --sourceMap",
     "prestart": "npm run build",
-    "start": "NODE_ENV=production node dist/host.js",
+    "start": "NODE_ENV=production node dist/main.js",
+    "dev": "NODE_ENV=development nodemon --watch src -e ts --exec 'npm run build && node dist/main.js'",
     "pretest": "npm run build",
     "test": "NODE_ENV=development NODE_OPTIONS='--experimental-vm-modules' jest",
     "test:client": "NODE_ENV=development NODE_OPTIONS='--experimental-vm-modules' jest --testPathPattern=test/client.test.ts",
@@ -14,7 +16,7 @@
     "listener": "NODE_ENV=development node dist/listener.js"
   },
   "bin": {
-    "mcpguide": "./dist/host.js"
+    "mcpguide": "./dist/main.js"
   },
   "keywords": [
     "mcp",
@@ -28,6 +30,7 @@
     "@types/node": "^22.13.13",
     "concurrently": "^9.1.2",
     "jest": "^29.7.0",
+    "nodemon": "^3.0.1",
     "ts-jest": "^29.3.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.2"
@@ -38,6 +41,7 @@
     "eventsource": "^3.0.6",
     "mcps-logger": "^1.0.0-rc.4",
     "node-fetch": "^3.3.2",
+    "rimraf": "^5.0.5",
     "zod": "^3.24.2"
   }
 }

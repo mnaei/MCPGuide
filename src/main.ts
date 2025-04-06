@@ -6,8 +6,7 @@ import { LATEST_PROTOCOL_VERSION } from "./config/repositories.ts";
 import { 
   McpSpecificationArgs, 
   mcpSpecificationSchema, 
-  VersionEnum, 
-  VERSION_OPTIONS 
+  VersionEnum 
 } from "./types/specification.ts";
 
 /**
@@ -36,7 +35,7 @@ server.tool(
         content: [
           {
             type: "text",
-            text: `Invalid version. Available versions are: ${Object.keys(VERSION_OPTIONS).join(', ')}`
+            text: `Invalid version. Available versions are: ${Object.keys(VersionEnum.enum).join(', ')}`
           }
         ],
         isError: true
