@@ -2,29 +2,17 @@ import "./utils/logger.ts";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { KnowledgeBaseManager } from "./knowledgebase.ts";
-import { z } from "zod";
-import { AVAILABLE_VERSIONS, LATEST_PROTOCOL_VERSION } from "./config/repositories.ts";
+import { LATEST_PROTOCOL_VERSION } from "./config/repositories.ts";
+import { 
+  McpSpecificationArgs, 
+  mcpSpecificationSchema, 
+  VersionEnum, 
+  VERSION_OPTIONS 
+} from "./types/specification.ts";
 
 /**
  * MCP Host - Manages MCP servers
  */
-
-// Define version enum with Zod
-const VersionEnum = z.enum(AVAILABLE_VERSIONS as [string, ...string[]]);
-
-// Export the enum values for easy access
-export const VERSION_OPTIONS = VersionEnum.enum;
-
-// Define the schema shape
-const mcpSpecificationSchema = {
-  version: z.enum(AVAILABLE_VERSIONS as [string, ...string[]]).optional()
-};
-
-// Create the Zod schema object
-const McpSpecificationArgsSchema = z.object(mcpSpecificationSchema);
-
-// Derive TypeScript type from the schema
-type McpSpecificationArgs = z.infer<typeof McpSpecificationArgsSchema>;
 
 let knowledgeBase = new KnowledgeBaseManager("./data");
 
